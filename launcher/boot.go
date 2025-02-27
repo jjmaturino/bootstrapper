@@ -1,7 +1,7 @@
 package launcher
 
 import (
-	"github.com/jjmaturino/pulleytakehome/pkg/bootstrapper/platform"
+	"github.com/jjmaturino/bootstrapper/platform"
 	"log"
 )
 

@@ -3,7 +3,7 @@ package launcher
 import (
 	"bytes"
 	"fmt"
-	"github.com/jjmaturino/pulleytakehome/pkg/bootstrapper/platform"
+	"github.com/jjmaturino/bootstrapper/platform"
 	"log"
 	"strings"
 	"testing"

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/websocket"
-	"github.com/jjmaturino/pulleytakehome/pkg/bootstrapper/network"
+	"github.com/jjmaturino/bootstrapper/network"
 	"net/http"
 	"net/url"
 	"time"

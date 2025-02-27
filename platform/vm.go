@@ -3,7 +3,7 @@ package platform
 import (
 	"context"
 	"errors"
-	"github.com/jjmaturino/pulleytakehome/pkg/bootstrapper/api"
+	"github.com/jjmaturino/bootstrapper/api"
 	"log"
 	"time"
 
