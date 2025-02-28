@@ -15,3 +15,21 @@ const (
 func (pT *Type) String() string {
 	return string(*pT)
 }
+
+// ServiceType defines the type of service being run
+type ServiceType string
+
+// Service type constants
+const (
+	HTTPService ServiceType = "http" // Only implementing HTTP service for now
+
+	// Future service types (placeholders)
+	// GRPCService	  ServiceType = "grcp"
+	// QueueService   ServiceType = "queue"
+	// WorkerService  ServiceType = "worker"
+	// ScheduledTask  ServiceType = "scheduled"
+)
+
+func (sT *ServiceType) String() string {
+	return string(*sT)
+}
