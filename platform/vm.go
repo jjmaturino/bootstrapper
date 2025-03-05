@@ -66,3 +66,25 @@ func corsMiddleware(allowedOrigin string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// NewVMServiceStarter creates a new VM service starter
+func NewVMServiceStarter(logger *zap.Logger) *VMServiceStarter {
+	if logger == nil {
+		var err error
+		logger, err = zap.NewProduction()
+		if err != nil {
+			log.Printf("Failed to create logger: %v", err)
+		}
+	}
+
+	return &VMServiceStarter{
+		logger: logger,
+	}
+}
+
+// VMServiceStarter starts services on VM platform
+type VMServiceStarter struct {
+	logger *zap.Logger
+}
+
+var _ ServiceStarter = (*VMServiceStarter)(nil)
