@@ -11,17 +11,25 @@ type Engine interface {
 	Handle(method, relativePath string, handlers ...gin.HandlerFunc) gin.IRoutes // TODO: Generalize this, Only allows for gin
 }
 
-// ApiService defines the interface that all services must adhere to
-type ApiService interface {
-	ConstructService(ctx context.Context, deps ...interface{}) error // TODO: Potentiall add ability to pass something like deps injector from do'samber
-	// SetupEngine is called after ConstructServices. The Service is expected to bind any routes or other
-	// necessary work to setup provided Engine for initial use. Usually this just means binding any appropriate
-	// routes to handlers.
-	SetupEngine(eng Engine) (Engine, error)
+// HTTPService defines the interface that all services must adhere to
+type HTTPService interface {
+	Service
+
+	// ConfigureRoutes sets ups the routes of the http service using an engine
+	ConfigureRoutes(ctx context.Context, engine Engine) error
+}
+
+// Service is the base interface for all service types
+type Service interface {
+	// Initialize sets up the service with dependencies
+	Initialize(ctx context.Context, deps ...interface{}) error // TODO: Potentially add ability to pass something like deps injector from do'samber
+
+	// Type returns the service type
+	Type() ServiceType
 }
 
 // RuntimeStarter defines how to start a service on a specific runtime
 type RuntimeStarter interface {
 	// Start begins the service on the specific runtime
-	Start(service ApiService, engine Engine, deps ...interface{}) error
+	Start(ctx context.Context, service Service, deps ...interface{}) error
 }
