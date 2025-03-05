@@ -8,7 +8,7 @@ import (
 // Engine is an interface for HTTP engines like Gin
 type Engine interface {
 	Run(addr ...string) (err error)
-	Handle(method, relativePath string, handlers ...gin.HandlerFunc) gin.IRoutes // TODO: Generalize this, Only allows for gin
+	Handle(method, relativePath string, handlers ...gin.HandlerFunc) gin.IRoutes // TODO: Generalize this, Only currently allows for gin
 }
 
 // HTTPService defines the interface that all services must adhere to
@@ -28,8 +28,8 @@ type Service interface {
 	Type() ServiceType
 }
 
-// RuntimeStarter defines how to start a service on a specific runtime
-type RuntimeStarter interface {
+// ServiceStarter defines how to start a service on a specific platform runtime
+type ServiceStarter interface {
 	// Start begins the service on the specific runtime
 	Start(ctx context.Context, service Service, deps ...interface{}) error
 }
