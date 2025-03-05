@@ -181,7 +181,3 @@ launcher.Start(ctx, myService, platformtype, deps...)
 │  VM Starter     ││ K8s Starter ││Docker ││ Lambda  ││ Custom Starter  │
 └─────────────────┘└─────────────┘└───────┘└─────────┘└─────────────────┘
 ```
-
-## License
-
-MIT
