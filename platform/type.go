@@ -21,7 +21,7 @@ type ServiceType string
 
 // Service type constants
 const (
-	HTTPService ServiceType = "http" // Only implementing HTTP service for now
+	HTTPServiceType ServiceType = "http" // Only implementing HTTP service for now
 
 	// Future service types (placeholders)
 	// GRPCService	  ServiceType = "grcp"
