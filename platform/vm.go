@@ -3,60 +3,47 @@ package platform
 import (
 	"context"
 	"errors"
-	"github.com/jjmaturino/bootstrapper/api"
-	"log"
-	"time"
-
-	gzip "github.com/gin-contrib/zap"
-	"github.com/gin-gonic/gin"
+	"fmt"
 	"go.uber.org/zap"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
-func DefaultGinEngine(logger *zap.Logger) (*gin.Engine, error) {
-	r := gin.Default()
-	r.ContextWithFallback = true
+// startHTTPService starts an HTTP service on the VM runtime platform
+func (v *VMServiceStarter) startHTTPService(ctx context.Context, service HTTPService, deps ...interface{}) error {
+	v.logger.Info("Setting up HTTP service")
 
-	if logger == nil {
-		logger = zap.L()
-	}
-
-	r.Use(
-		gzip.Ginzap(logger, time.RFC3339, true),
-		gzip.RecoveryWithZap(logger, true),
-		corsMiddleware("*"),
-	)
-	r.NoRoute(func(c *gin.Context) {
-		err := api.SendNotFoundResponse(c)
-		if err != nil {
-			zap.L().Error("failed to SendNotFoundResponse", zap.Error(err))
+	// Find the engine in the dependencies
+	var engine Engine
+	for _, dep := range deps {
+		if eng, ok := dep.(Engine); ok {
+			engine = eng
+			break
 		}
-	})
-	return r, nil
-}
-
-// StartVM begins a gin server on a virtual machine
-func StartVM(service ApiService, engine Engine, deps ...interface{}) error {
-	ctx := context.TODO()
+	}
 
 	if engine == nil {
-		return errors.New("engine is nil")
+		return errors.New("engine not found in dependencies for HTTP service")
 	}
 
-	err := service.ConstructService(ctx, deps)
-	if err != nil {
-		log.Printf("Error: %s", err.Error())
-		return err
+	// Configure routes
+	v.logger.Info("Configuring HTTP routes")
+	if err := service.ConfigureRoutes(ctx, engine); err != nil {
+		v.logger.Error("Failed to configure routes", zap.Error(err))
+		return fmt.Errorf("failed to configure routes: %w", err)
 	}
 
-	eng, err := service.SetupEngine(engine)
-	if err != nil {
-		log.Printf("Error: %s", err.Error())
+	// Setup signal handling for graceful shutdown
+	v.setupSignalHandling(ctx)
 
-		return err
-	}
+	// Start the HTTP server
+	v.logger.Info("Starting HTTP server")
 
+	// Run the engine (this is blocking)
 	// Start the Gin server on default port 8080
-	return eng.Run() // Default listens on :8080
+	return engine.Run() // Default listens on :8080
 }
 
 // setupSignalHandling sets up OS signal handlers  for graceful shutdown
