@@ -5,8 +5,8 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jjmaturino/bootstrapper/launcher"
 	"github.com/jjmaturino/bootstrapper/platform"
+	"github.com/jjmaturino/bootstrapper/starter"
 	"go.uber.org/zap"
 )
 
@@ -77,6 +77,5 @@ func main() {
 	service := NewService()
 
 	// Start the service on VM platform
-	launcher.Start(service, platform.VM, engine, logger)
+	starter.Start(service, platform.VM, engine, logger)
 }
-
