@@ -53,54 +53,186 @@ func (m *MockEngine) Handle(method, relativePath string, handlers ...gin.Handler
 	return args.Get(0).(gin.IRoutes)
 }
 
-	service := &MockGinService{
-		ConstructServicesFunc: func(ctx context.Context, deps ...interface{}) error {
-			return serviceError
+func TestNewVMServiceStarter(t *testing.T) {
+	tests := []struct {
+		name   string
+		logger *zap.Logger
+		want   *VMServiceStarter
+	}{
+		{
+			name:   "with logger",
+			logger: zaptest.NewLogger(t),
+			want:   &VMServiceStarter{logger: zaptest.NewLogger(t)},
+		},
+		{
+			name:   "with nil logger",
+			logger: nil,
+			want:   &VMServiceStarter{}, // logger will be created inside
 		},
 	}
-	eng := MockEngineSuccess{}
 
-	err := StartVM(service, &eng)
-	require.Error(t, err)
-	assert.Equal(t, serviceError, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel() // Remove this if it exists
+			got := NewVMServiceStarter(tt.logger)
+			assert.NotNil(t, got)
+			assert.NotNil(t, got.logger)
+		})
+	}
 }
 
-func TestStartVM_SetupEngineError(t *testing.T) {
-	serviceError := errors.New("setup engine error")
+func TestVMServiceStarter_Start(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	ctx := context.Background()
 
-	service := &MockGinService{
-		SetupEngineFunc: func(eng Engine) (Engine, error) {
-			return nil, serviceError
+	tests := []struct {
+		name        string
+		service     func() Service
+		deps        []interface{}
+		wantErr     bool
+		expectedErr string
+	}{
+		{
+			name: "HTTP service success",
+			service: func() Service {
+				mockHTTP := new(MockHTTPService)
+				mockHTTP.On("Initialize", mock.Anything, mock.Anything).Return(nil)
+				mockHTTP.On("Type").Return(HTTPServiceType)
+				mockHTTP.On("ConfigureRoutes", mock.Anything, mock.Anything).Return(nil)
+				return mockHTTP
+			},
+			deps: []interface{}{
+				func() Engine {
+					mockEngine := new(MockEngine)
+					mockEngine.On("Run", mock.Anything).Return(nil)
+					return mockEngine
+				}(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "HTTP service without engine",
+			service: func() Service {
+				mockHTTP := new(MockHTTPService)
+				mockHTTP.On("Initialize", mock.Anything, mock.Anything).Return(nil)
+				mockHTTP.On("Type").Return(HTTPServiceType)
+				return mockHTTP
+			},
+			deps:        []interface{}{},
+			wantErr:     true,
+			expectedErr: "engine not found in dependencies for HTTP service",
+		},
+		{
+			name: "HTTP service with initialize error",
+			service: func() Service {
+				mockHTTP := new(MockHTTPService)
+				mockHTTP.On("Initialize", mock.Anything, mock.Anything).Return(errors.New("initialize error"))
+				return mockHTTP
+			},
+			deps:        []interface{}{},
+			wantErr:     true,
+			expectedErr: "failed to initialize service: initialize error",
+		},
+		{
+			name: "HTTP service with configure routes error",
+			service: func() Service {
+				mockHTTP := new(MockHTTPService)
+				mockHTTP.On("Initialize", mock.Anything, mock.Anything).Return(nil)
+				mockHTTP.On("Type").Return(HTTPServiceType)
+				mockHTTP.On("ConfigureRoutes", mock.Anything, mock.Anything).Return(errors.New("configure error"))
+				return mockHTTP
+			},
+			deps: []interface{}{
+				func() Engine {
+					mockEngine := new(MockEngine)
+					return mockEngine
+				}(),
+			},
+			wantErr:     true,
+			expectedErr: "failed to configure routes: configure error",
+		},
+		{
+			name: "unsupported service type",
+			service: func() Service {
+				mockService := new(MockService)
+				mockService.On("Initialize", mock.Anything, mock.Anything).Return(nil)
+				mockService.On("Type").Return(ServiceType("unknown"))
+				return mockService
+			},
+			deps:        []interface{}{},
+			wantErr:     true,
+			expectedErr: "unsupported service type for VM platform: unknown",
+		},
+		{
+			name: "HTTP service type with wrong interface",
+			service: func() Service {
+				// Service says it's HTTP but doesn't implement HTTPService
+				mockService := new(MockService)
+				mockService.On("Initialize", mock.Anything, mock.Anything).Return(nil)
+				mockService.On("Type").Return(HTTPServiceType)
+				return mockService
+			},
+			deps:        []interface{}{},
+			wantErr:     true,
+			expectedErr: "service claims to be HTTP but does not implement HTTPService interface",
 		},
 	}
-	eng := MockEngineSuccess{}
-	r := eng.Handle("GET", "/", func(c *gin.Context) {})
 
-	err := StartVM(service, &eng)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 
-	require.Nil(t, r)
-	require.Error(t, err)
-	assert.Equal(t, serviceError, err)
-}
+			t.Parallel()
+			starter := NewVMServiceStarter(logger)
+			service := tt.service()
 
-func TestStartVM_EngineNil(t *testing.T) {
-	err := StartVM(&MockGinService{}, nil)
-	require.Error(t, err)
-	assert.Equal(t, "engine is nil", err.Error())
-}
+			// Use a context with timeout to avoid test hanging
+			ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
 
-func TestStartVM_RunError(t *testing.T) {
-	// Create a mock engine that returns an error when running
-	// Create a mock gin service that returns nil when constructing services
-	service := &MockGinService{}
-	eng := MockEngineError{}
-	r := eng.Handle("GET", "/", func(c *gin.Context) {})
+			// For tests with engine.Run(), which normally blocks, we need to cancel the context
+			// to allow the test to complete
+			if mockHTTP, ok := service.(*MockHTTPService); ok {
+				if mockHTTP.AssertExpectations(t) {
+					for _, dep := range tt.deps {
+						if mockEngine, ok := dep.(Engine); ok {
+							// Mock the Run method to return after a short delay or when context is done
+							mockEngine.(*MockEngine).On("Run", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+								// Wait for context to be done or a short timeout
+								select {
+								case <-ctx.Done():
+									return
+								case <-time.After(50 * time.Millisecond):
+									cancel() // Cancel context to allow test to complete
+									return
+								}
+							})
+						}
+					}
+				}
+			}
 
-	err := StartVM(service, &eng)
+			err := starter.Start(ctx, service, tt.deps...)
 
-	require.Nil(t, r)
-	require.Error(t, err)
-	assert.Equal(t, "run error", err.Error())
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.expectedErr != "" {
+					assert.Contains(t, err.Error(), tt.expectedErr)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Verify that all expectations were met
+			if mockHTTP, ok := service.(*MockHTTPService); ok {
+				mockHTTP.AssertExpectations(t)
+				for _, dep := range tt.deps {
+					if mockEngine, ok := dep.(*MockEngine); ok {
+						mockEngine.AssertExpectations(t)
+					}
+				}
+			}
+		})
+	}
 }
 
 func TestVMServiceStarter_startHTTPService(t *testing.T) {
@@ -229,13 +361,23 @@ func TestVMServiceStarter_setupSignalHandling(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	starter := NewVMServiceStarter(logger)
 
-	// Testing signal handling is tricky, so we'll just ensure it doesn't panic
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
+	// Create a context that will be canceled explicitly before the test ends
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// This shouldn't panic
 	starter.setupSignalHandling(ctx)
 
-	// Wait for context to be done
-	<-ctx.Done()
+	// Create a timeout to ensure the test doesn't hang
+	timer := time.NewTimer(100 * time.Millisecond)
+	defer timer.Stop()
+
+	// Wait for a short time to ensure signal handling is set up
+	<-timer.C
+
+	// Cancel the context explicitly before the test ends
+	// This will signal the goroutine to exit cleanly
+	cancel()
+
+	// Give the goroutine time to process the cancellation and exit
+	time.Sleep(50 * time.Millisecond)
 }
