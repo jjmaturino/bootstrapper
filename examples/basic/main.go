@@ -89,6 +89,6 @@ func main() {
 	// Start the service on VM platform
 	err := launcher.Start(ctx, service, platform.VM, engine, logger)
 	if err != nil {
-		logger.Fatal("Failed to start service", zap.Error(err), zap.String("platform type", platform.VM), zap.String("service type", serviceType.String()))
+		logger.Fatal("Failed to start service", zap.Error(err), zap.String("platform type", string(platform.VM)), zap.String("service type", serviceType.String()))
 	}
 }
