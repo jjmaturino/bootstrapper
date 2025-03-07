@@ -50,14 +50,14 @@ package main
 import (
 	"context"
 	"github.com/gin-gonic/gin"
-	"github.com/jjmaturino/bootstrapper/launcher"
+	"github.com/jjmaturino/bootstrapper/starter"
 	"github.com/jjmaturino/bootstrapper/platform"
 	"go.uber.org/zap"
 )
 
 
 func main() {
-	// Initialize context
+	// Create context
 	ctx := context.Background()
 
 	// Initialize logger
@@ -65,14 +65,21 @@ func main() {
 	defer logger.Sync()
 
 	// Create Gin engine with default configuration
-	engine:= gin.Default()
+	engine := gin.Default()
 
-	// Create your service 
-	service := NewMyHttpService() // Implement platform.ApiService
+	// Create service
+	service := NewService()
 
-	// Start the service on VM platform, with dependencies injected
-	launcher.Start(ctx, service, platform.VM, engine, logger)
+	launcher := starter.NewServiceLauncher(ctx, logger)
+	serviceType := service.Type()
+
+	// Start the service on VM platform
+	err := launcher.Start(ctx, service, platform.VM, engine, logger)
+	if err != nil {
+		logger.Fatal("Failed to start service", zap.Error(err), zap.String("platform type", platform.VM), zap.String("service type", serviceType.String()))
+	}
 }
+
 ```
 
 ## Creating a Service
@@ -85,7 +92,7 @@ package service
 import (
 	"context"
 	"github.com/gin-gonic/gin"
-	"github.com/jjmaturino/bootstrapper/launcher"
+	"github.com/jjmaturino/bootstrapper/starter"
 	"github.com/jjmaturino/bootstrapper/platform"
 	"go.uber.org/zap"
 )
@@ -123,6 +130,7 @@ func (s *MyHTTPService) ConfigureRoutes(ctx context.Context, engine platform.Eng
     
     return nil
 }
+
 ```
 
 ## Extending with New Platforms
@@ -135,7 +143,7 @@ package examplepkg
 
 import (
     "context"
-    "github.com/jjmaturino/bootstrapper/launcher"
+    "github.com/jjmaturino/bootstrapper/starter"
     "github.com/jjmaturino/bootstrapper/platform"
 )
 
@@ -152,11 +160,21 @@ func (k *K8sServiceStarter) StartService(ctx context.Context, service platform.S
 
 var platformtype = "fly.io"
 
-// Register it with the launcher
-launcher.RegisterPlatform(ctx, platformtype, &K8sServiceStarter{logger})
-
-// Now you can use it
-launcher.Start(ctx, myService, platformtype, deps...)
+func main(){
+    ctx := context.Background()
+    logger, _ := zap.NewProduction()
+    defer logger.Sync()
+    
+    // Register it with the launcher
+	launcher := starter.NewServiceLauncher(ctx, logger)
+    launcher.RegisterPlatform(ctx, platformtype, &K8sServiceStarter{logger})
+    
+    // Now you can use it
+    err := launcher.Start(ctx, myService, platformtype, deps...)
+	if err != nil {
+		logger.Fatal("Failed to start service", zap.Error(err), zap.String("platform type", platformtype))
+	}
+}
 ```
 
 
