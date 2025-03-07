@@ -183,7 +183,7 @@ func main(){
 
 ``` 
 ┌─────────────────┐      ┌───────────────────┐
-│     Service     │      │      Launcher     │
+│     Service     │      │      Starter      │
 │  (Your Code)    │─────▶│ (Start Services)  │
 └─────────────────┘      └─────────┬─────────┘
                                    │
