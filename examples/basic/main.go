@@ -44,7 +44,7 @@ func (s *MyService) ConfigureRoutes(ctx context.Context, eng platform.Engine) er
 	s.logger.Info("Setting up engine")
 
 	// Add custom routes
-	eng.Handle("GET", "/hello", func(c *gin.Context) {
+	eng.Handle("GET", "/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "Hello, World!",
 		})
