@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
-
 	"github.com/gin-gonic/gin"
 	"github.com/jjmaturino/bootstrapper/platform"
 	"github.com/jjmaturino/bootstrapper/starter"
@@ -24,7 +22,7 @@ func NewService() *MyService {
 }
 
 // ConstructService initializes the service
-func (s *MyService) ConstructService(ctx context.Context, deps ...interface{}) error {
+func (s *MyService) Initialize(ctx context.Context, deps ...interface{}) error {
 	s.logger.Info("Constructing service")
 
 	// Process any dependencies
@@ -42,7 +40,7 @@ func (s *MyService) ConstructService(ctx context.Context, deps ...interface{}) e
 }
 
 // SetupEngine configures the HTTP engine
-func (s *MyService) SetupEngine(eng platform.Engine) (platform.Engine, error) {
+func (s *MyService) ConfigureRoutes(ctx context.Context, eng platform.Engine) error {
 	s.logger.Info("Setting up engine")
 
 	// Add custom routes
@@ -59,23 +57,38 @@ func (s *MyService) SetupEngine(eng platform.Engine) (platform.Engine, error) {
 	})
 
 	s.logger.Info("Engine setup complete")
-	return eng, nil
+
+	return nil
 }
 
+// Type returns the type of the service
+func (s *MyService) Type() platform.ServiceType {
+	return platform.HTTPServiceType
+}
+
+var _ platform.Service = (*MyService)(nil)
+var _ platform.HTTPService = (*MyService)(nil)
+
 func main() {
+	// Create context
+	ctx := context.Background()
+
 	// Initialize logger
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
 	// Create Gin engine with default configuration
-	engine, err := platform.DefaultGinEngine(logger)
-	if err != nil {
-		log.Fatalf("Failed to create engine: %v", err)
-	}
+	engine := gin.Default()
 
 	// Create service
 	service := NewService()
 
+	launcher := starter.NewServiceLauncher(ctx, logger)
+	serviceType := service.Type()
+
 	// Start the service on VM platform
-	starter.Start(service, platform.VM, engine, logger)
+	err := launcher.Start(ctx, service, platform.VM, engine, logger)
+	if err != nil {
+		logger.Fatal("Failed to start service", zap.Error(err), zap.String("platform type", platform.VM), zap.String("service type", serviceType.String()))
+	}
 }
