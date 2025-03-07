@@ -1,4 +1,4 @@
-package launcher
+package starter
 
 import (
 	"context"
@@ -8,59 +8,62 @@ import (
 	"sync"
 )
 
-// ServiceRegistry manages the registration and retrieval of platform service starters
-type ServiceRegistry struct {
+// ServiceLauncher manages the registration and launching of services on different platforms
+type ServiceLauncher struct {
 	// serviceStarterRegistry maps platform types to service starter implementations
 	serviceStarterRegistry map[platform.Type]platform.ServiceStarter
 
 	// registryMu protects the registry
 	registryMu sync.RWMutex
 
-	// logger for the registry
+	// logger for the launcher
 	logger *zap.Logger
 }
 
-var (
-	// serviceStarterRegistry maps platform types to service starter implementations
-	serviceStarterRegistry = make(map[platform.Type]platform.ServiceStarter)
+// NewServiceLauncher creates a new service launcher with the provided logger
+func NewServiceLauncher(ctx context.Context, logger *zap.Logger) *ServiceLauncher {
+	launcher := &ServiceLauncher{
+		serviceStarterRegistry: make(map[platform.Type]platform.ServiceStarter),
+		logger:                 logger,
+	}
 
-	// registryMu protects the registry
-	registryMu sync.RWMutex
+	// Register builtin platform starters
+	launcher.RegisterPlatform(ctx, platform.VM, platform.NewVMServiceStarter(logger))
+	// Other platforms would be registered here
 
-	// logger for the launcher
-	logger *zap.Logger
-)
+	return launcher
+}
 
 // Start launches a service on the specified platform
-func Start(
+func (l *ServiceLauncher) Start(
 	ctx context.Context,
 	service platform.Service,
 	platformType platform.Type,
 	deps ...interface{},
 ) error {
 	// Get the appropriate service starter for the platform
-	registryMu.RLock()
-	starter, ok := serviceStarterRegistry[platformType]
-	registryMu.RUnlock()
+	l.registryMu.RLock()
+	starter, ok := l.serviceStarterRegistry[platformType]
+	l.registryMu.RUnlock()
 
 	if !ok {
 		return fmt.Errorf("unsupported platform type: %s", platformType)
 	}
 
 	// Start the service with the platform-specific starter
-	logger.Info("Starting service",
+	l.logger.Info("Starting service",
 		zap.String("platform", string(platformType)),
 		zap.String("serviceType", string(service.Type())))
 
-	return starter.StartService(ctx, service, deps...)
+	return starter.Start(ctx, service, deps...)
 }
 
 // GetPlatformStarter retrieves a registered platform service starter
-func GetPlatformStarter(platformType platform.Type) (platform.ServiceStarter, error) {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
+func (l *ServiceLauncher) GetPlatformStarter(platformType platform.Type) (platform.ServiceStarter, error) {
+	l.registryMu.RLock()
+	defer l.registryMu.RUnlock()
 
-	starter, ok := serviceStarterRegistry[platformType]
+	starter, ok := l.serviceStarterRegistry[platformType]
 	if !ok {
 		return nil, fmt.Errorf("no starter registered for platform: %s", platformType)
 	}
@@ -69,28 +72,16 @@ func GetPlatformStarter(platformType platform.Type) (platform.ServiceStarter, er
 }
 
 // RegisterPlatform allows registering custom platform service starters
-func RegisterPlatform(platformType platform.Type, starter platform.ServiceStarter) {
-	registryMu.Lock()
-	defer registryMu.Unlock()
+func (l *ServiceLauncher) RegisterPlatform(ctx context.Context, platformType platform.Type, starter platform.ServiceStarter) {
+	l.registryMu.Lock()
+	defer l.registryMu.Unlock()
 
-	if _, exists := serviceStarterRegistry[platformType]; exists {
-		logger.Warn("Overriding existing platform starter",
+	if _, exists := l.serviceStarterRegistry[platformType]; exists {
+		l.logger.Warn("Overriding existing platform starter",
 			zap.String("platform", string(platformType)))
 	}
 
-	serviceStarterRegistry[platformType] = starter
-	logger.Info("Registered platform starter",
+	l.serviceStarterRegistry[platformType] = starter
+	l.logger.Info("Registered platform starter",
 		zap.String("platform", string(platformType)))
-}
-
-// init initializes the launcher package
-func init() {
-	logger, err := zap.NewProduction()
-	if err != nil {
-		panic(fmt.Sprintf("failed to initialize logger: %v", err))
-	}
-
-	// Register builtin platform starters
-	RegisterPlatform(platform.VM, platform.NewVMServiceStarter(logger))
-	// Other platforms would be registered here
 }
