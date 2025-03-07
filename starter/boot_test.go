@@ -18,7 +18,7 @@ func TestStart(t *testing.T) {
 
 	// Mock implementation of StartVM
 	var startVMCalled bool
-	StartVM = func(service platform.ApiService, engine platform.Engine, deps ...interface{}) error {
+	StartVM = func(service platform.HTTPService, engine platform.Engine, deps ...interface{}) error {
 		startVMCalled = true
 		return nil // Simulate success
 	}
@@ -53,7 +53,7 @@ func TestStart(t *testing.T) {
 	buf.Reset()
 
 	// Test Case 2: StartVM fails
-	StartVM = func(service platform.ApiService, engine platform.Engine, deps ...interface{}) error {
+	StartVM = func(service platform.HTTPService, engine platform.Engine, deps ...interface{}) error {
 		startVMCalled = true
 		return fmt.Errorf("failed to start VM")
 	}
