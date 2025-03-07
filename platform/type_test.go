@@ -7,7 +7,7 @@ func TestType(t *testing.T) {
 	expected := "virtual_machine"
 
 	if pT.String() != expected {
-		t.Errorf("Expected %s, got %s", expected, sT.String())
+		t.Errorf("Expected %s, got %s", expected, pT.String())
 	}
 }
 
